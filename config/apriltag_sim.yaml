@@ -1,0 +1,53 @@
+apriltag_sim:
+  ros__parameters:
+    pose_topic: "/sim_truth/pose"
+    base_frame: "base_footprint"
+    publish_rate_hz: 20.0
+
+    # Cameras (match URDF amr_sim.urdf.xacro). Optical frame names are published
+    # by robot_state_publisher from the realsense.gazebo.xacro macro.
+    cameras:
+      names: ["front", "mid", "rear"]
+      front:
+        optical_frame: "front_realsense_color_optical_frame"
+        hfov_deg: 87.0
+        vfov_deg: 58.0
+        max_range: 3.0
+        min_range: 0.1
+      mid:
+        optical_frame: "mid_realsense_color_optical_frame"
+        hfov_deg: 87.0
+        vfov_deg: 58.0
+        max_range: 3.0
+        min_range: 0.1
+      rear:
+        optical_frame: "rear_realsense_color_optical_frame"
+        hfov_deg: 87.0
+        vfov_deg: 58.0
+        max_range: 3.0
+        min_range: 0.1
+
+    # Shim services for production enable_detection calls. Each entry creates
+    # a std_srvs/SetBool service (no-op, always returns success). Absolute
+    # names bypass the node namespace so they match amr_api's expectations.
+    enable_service_names:
+      - "/apriltag/front/enable_detection"
+      - "/apriltag/mid/enable_detection"
+      - "/apriltag/rear/enable_detection"
+      - "/apriltag/enable_detection"
+
+    # Shim for amr_ex_action::srv::DetectParameter (amr_ex_action calls
+    # /apriltag/set_parameter before marker-based reference movement).
+    detect_param_service_names:
+      - "/apriltag/set_parameter"
+
+    # Tag poses in the map frame. yaw_face (rad) is the direction the tag faces
+    # (i.e. +z of the tag frame). Tag y-axis is world up. All four arrays must
+    # have the same length as tag_names.
+    #
+    # type 11 maps to machine_param_B.yaml kennel type=11 go_out sequence.
+    tag_names:     ["home_11"]
+    tag_xs:        [1.69]
+    tag_ys:        [1.8]
+    tag_zs:        [0.20]
+    tag_yaws_face: [-1.5708]  # tag faces -Y (toward AMR approaching from +Y direction)
