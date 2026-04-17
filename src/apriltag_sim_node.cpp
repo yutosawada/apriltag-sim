@@ -343,23 +343,38 @@ void AprilTagSimNode::tick()
         try { tag_id = std::stoi(tag.name.substr(upos + 1)); } catch (...) { continue; }
         if (tag_id != active_alias_.target_id) continue;
 
-        // Found matching tag. Publish base_footprint -> alias with same transform.
-        // No range gating for alias: the alias is used by amr_ex_action's PID
+        // Found matching tag. Publish base_footprint -> alias.
+        // No range gating: the alias is used by amr_ex_action's PID
         // controller and must remain available as long as the AMR is moving.
-        const tf2::Transform T_base_tag = T_map_base.inverse() * tag.T_map_tag;
+        //
+        // Use 2D-only rotation (yaw of tag face direction relative to base)
+        // instead of the full 3D tag frame rotation. The PID operates in 2D
+        // and the AprilTag 3D convention (+Y=up, +Z=face) causes yaw to
+        // oscillate between 0 and ±π, making cmd_vel reverse every tick.
+        const tf2::Vector3 tag_pos_base =
+            (T_map_base.inverse() * tag.T_map_tag).getOrigin();
+
+        // tag_yaws_face is embedded in T_map_tag rotation. Extract the map
+        // yaw of the tag face direction from the tag's +Z axis in map frame.
+        const tf2::Vector3 tag_z_map = tag.T_map_tag.getBasis().getColumn(2);
+        const double tag_face_yaw_map = std::atan2(tag_z_map.y(), tag_z_map.x());
+        const double base_yaw = tf2::getYaw(T_map_base.getRotation());
+        const double relative_yaw = tag_face_yaw_map - base_yaw;
+
+        tf2::Quaternion q_2d;
+        q_2d.setRPY(0.0, 0.0, relative_yaw);
 
         geometry_msgs::msg::TransformStamped t;
         t.header.stamp = now;
         t.header.frame_id = base_frame_;
         t.child_frame_id = active_alias_.frame_name;
-        t.transform.translation.x = T_base_tag.getOrigin().x();
-        t.transform.translation.y = T_base_tag.getOrigin().y();
-        t.transform.translation.z = T_base_tag.getOrigin().z();
-        const auto q = T_base_tag.getRotation();
-        t.transform.rotation.x = q.x();
-        t.transform.rotation.y = q.y();
-        t.transform.rotation.z = q.z();
-        t.transform.rotation.w = q.w();
+        t.transform.translation.x = tag_pos_base.x();
+        t.transform.translation.y = tag_pos_base.y();
+        t.transform.translation.z = 0.0;
+        t.transform.rotation.x = q_2d.x();
+        t.transform.rotation.y = q_2d.y();
+        t.transform.rotation.z = q_2d.z();
+        t.transform.rotation.w = q_2d.w();
         to_send.push_back(std::move(t));
         break;
       }
